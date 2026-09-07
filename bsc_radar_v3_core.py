@@ -401,7 +401,11 @@ def extract_tickers(text: str) -> List[str]:
     found = re.findall(
         r"\$([A-Za-z][A-Za-z0-9]{1,14})\b",
         text,
-    )
+)
+   # found = re.findall(
+    #    r"\$([A-Za-z][A-Za-z0-9]{1,14})\b",
+     #   text,
+    #)
 
     results: List[str] = []
 
@@ -516,12 +520,16 @@ def extract_project_name(
     # --------------------------------------------------------
     # Explicit project-name patterns
     # --------------------------------------------------------
-
-    patterns = [
-        r"(?:project|token|coin)\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
-        r"(?:introducing|meet|welcome)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
-        r"(?:our project is|we are building)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
-    ]
+     patterns = [
+          r"(?:project|token|coin)(?:\s+name)?\s*[:\-]\s*([A-Za-z0-9][A-Za-z0-9 _. -]{1,60})",
+          r"(?:introducing|meet|welcome)\s+([A-Za-z0-9][A-Za-z0-9 _. -]{1,60})",
+          r"(?:our project is|we are building)\s+([A-Za-z0-9][A-Za-z0-9 _. -]{1,60})",
+]
+   # patterns = [
+    #    r"(?:project|token|coin)\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
+     #   r"(?:introducing|meet|welcome)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
+      #  r"(?:our project is|we are building)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{1,60})",
+    #]
 
     for pattern in patterns:
 
@@ -579,9 +587,11 @@ def extract_project_name(
 
         first = lines[0]
 
-        first = re.sub(
-            r"^(breaking|announcement|update|new)\s*[:\-]?\s*",
-            "",
+         first = re.sub(
+             r"^(breaking|announcement|update|new)\s*[:\-]?\s*",
+        #first = re.sub(
+         #   r"^(breaking|announcement|update|new)\s*[:\-]?\s*",
+          #  "",
             first,
             flags=re.IGNORECASE,
         )
@@ -910,7 +920,7 @@ def extract_social_links(
     text = clean_text(text)
 
     urls = re.findall(
-        r"https?://[^\s<>\"]+",
+         r'https?://[^\s<>"\']+'              # r"https?://[^\s<>\"]+",
         text,
         flags=re.IGNORECASE,
     )
@@ -968,9 +978,13 @@ def extract_x_handle(
     text = clean_text(text)
 
     patterns = [
-        r"(?:x\.com|twitter\.com)/([A-Za-z0-9_]{1,30})",
-        r"@([A-Za-z0-9_]{2,30})",
+       r"(?:x\.com|twitter\.com)/([A-Za-z0-9_]{1,30})",
+       r"@([A-Za-z0-9_]{2,30})",
     ]
+    #patterns = [
+     #   r"(?:x\.com|twitter\.com)/([A-Za-z0-9_]{1,30})",
+      #  r"@([A-Za-z0-9_]{2,30})",
+    #]
 
     for pattern in patterns:
 
@@ -1376,7 +1390,7 @@ class PreCARadar:
                 signal.text
             )
 
-        if signal.network != "BSC":
+        if signal.network: str = "" #network != "BSC":
 
             return None
 
@@ -1419,9 +1433,13 @@ class PreCARadar:
         # Duplicate signal
         # ----------------------------------------------------
 
-        self.signals[
-            signal.signal_id
-        ] = signal
+        if signal.signal_id in self.signals:
+            return None
+
+        self.signals[signal.signal_id] = signal
+        #self.signals[
+        #    signal.signal_id
+        #] = signal
 
         # ----------------------------------------------------
         # Candidate

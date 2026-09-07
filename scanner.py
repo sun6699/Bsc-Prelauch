@@ -25,6 +25,19 @@ IMPORTANT:
 - Mempool monitoring is intentionally separate and disabled by default.
 """
 
+#from __future__ import annotations
+
+#import json
+#import logging
+#import re
+#import threading
+#import time
+#from email.utils import parsedate_to_datetime
+#from html import unescape
+#from typing import Any, Dict, List, Optional
+#from urllib.parse import urlparse
+#import requests
+#import config
 from __future__ import annotations
 
 import json
@@ -32,6 +45,7 @@ import logging
 import re
 import threading
 import time
+
 from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Any, Dict, List, Optional
@@ -40,13 +54,55 @@ from urllib.parse import urlparse
 import requests
 
 import config
+
+from db import upsert_prelaunch
+
 from bsc_radar_v3_core import (
     PreCARadar,
     PreCASignal,
     ProjectCandidate,
     format_pre_ca_alert,
+    get_domain,
+    normalize_url,
+    extract_tickers,
+    handle_signal,
+    utc_now,
 )
+#from bsc_radar_v3_core import (
+#    PreCARadar,
+ #   PreCASignal,
+#    ProjectCandidate,
+ #   format_pre_ca_alert,
+#)
+#from bsc_radar_v3_core import (
+#    PreCARadar,
+#    PreCASignal,
+#    ProjectCandidate,
+#    format_pre_ca_alert,
+#    get_domain,
+#    normalize_url,
+#    extract_tickers,
+#    handle_signal,
+#    utc_now,
+#)
+def extract_urls(text: str) -> List[str]:
+    return re.findall(
+        r'https?://[^\s<>"\']+',
+        text or "",
+    )
 
+
+def extract_html_title(html: str) -> str:
+    match = re.search(
+        r"<title[^>]*>(.*?)</title>",
+        html or "",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    if not match:
+        return ""
+
+    return clean_xml(match.group(1))
 
 # ============================================================================
 # LOGGING
@@ -132,7 +188,7 @@ def http_get(
             return response
 
         except requests.RequestException as exc:
-            if attempt == config.RPC_RETRIES - 1:
+            if attempt == config.HTTP_RETRIES - 1:       # config.RPC_RETRIES 
                 log.warning("HTTP error: %s", exc)
                 return None
 
@@ -272,6 +328,11 @@ def search_x() -> int:
 
     return processed
 
+#def extract_urls(text: str) -> List[str]:
+ #   return re.findall(
+  #      r'https?://[^\s<>"\']+',
+   #     text or "",
+    #)
 
 def process_x_post(
     tweet: Dict[str, Any],
@@ -320,40 +381,77 @@ def process_x_post(
     if hashtags:
         project_name = hashtags[0]
 
-    signal = PreCASignal(
-        source_type="x",
-        source_name="X",
-        text=text,
-        url=(
-            f"https://x.com/i/web/status/"
-            f"{tweet.get('id')}"
-            if tweet.get("id")
-            else ""
-        ),
-        project_name=project_name,
-        ticker=tickers[0] if tickers else "",
-        network="BSC",
-        website=website,
-        telegram=telegram,
-        x_handle=x_handle,
-        engagement=(
+signal = PreCASignal(
+    source_type="x",
+    source_name="X",
+    text=text,
+    url=(
+        f"https://x.com/i/web/status/"
+        f"{tweet.get('id')}"
+        if tweet.get("id")
+        else ""
+    ),
+    project_name=project_name,
+    ticker=tickers[0] if tickers else "",
+    network="",
+    website_url=website,
+    raw={
+        "tweet": tweet,
+        "author": author,
+        "telegram": telegram,
+        "x_handle": x_handle,
+        "engagement": (
             int(metrics.get("like_count", 0))
             + int(metrics.get("reply_count", 0))
             + int(metrics.get("retweet_count", 0))
             + int(metrics.get("quote_count", 0))
         ),
-        followers=int(
+        "followers": int(
             author_metrics.get("followers_count", 0)
         ),
-        author=author.get("username", ""),
-        author_followers=int(
+        "author": author.get("username", ""),
+        "author_followers": int(
             author_metrics.get("followers_count", 0)
         ),
-        raw={
-            "tweet": tweet,
-            "author": author,
-        },
-    )
+    },
+)
+
+return handle_signal(signal)
+
+   # signal = PreCASignal(
+    #    source_type="x",
+     #   source_name="X",
+      #  text=text,
+       # url=(
+        #    f"https://x.com/i/web/status/"
+         #   f"{tweet.get('id')}"
+          #  if tweet.get("id")
+           # else ""
+       # ),
+        #project_name=project_name,
+        #ticker=tickers[0] if tickers else "",
+        #network="BSC",
+        #website=website,
+        #telegram=telegram,
+        #x_handle=x_handle,
+        #engagement=(
+         #   int(metrics.get("like_count", 0))
+          #  + int(metrics.get("reply_count", 0))
+           # + int(metrics.get("retweet_count", 0))
+            #+ int(metrics.get("quote_count", 0))
+        #),
+        #followers=int(
+         #   author_metrics.get("followers_count", 0)
+        #),
+        #author=author.get("username", ""),
+        #author_followers=int(
+        #    author_metrics.get("followers_count", 0)
+        #),
+        #raw={
+        #    "tweet": tweet,
+        #    "author": author,
+        #},
+    #)
 
     return handle_signal(signal)
 
@@ -399,7 +497,8 @@ def search_rss_feeds() -> int:
         for entry in entries:
             signal = PreCASignal(
                 source_type="rss",
-                source_name=domain(feed_url) or feed_url,
+                source_name=get_domain(feed_url) or feed_url,
+               # source_name=domain(feed_url) or feed_url,
                 text=(
                     f"{entry.get('title', '')}\n"
                     f"{entry.get('description', '')}"
@@ -409,7 +508,11 @@ def search_rss_feeds() -> int:
                 observed_at=entry.get(
                     "published",
                     "",
-                ) or config_utc_now(),
+                ) or utc_now(),
+                #observed_at=entry.get(
+                 #   "published",
+                 #   "",
+                #) or config_utc_now(),
                 raw=entry,
             )
 
@@ -537,6 +640,18 @@ def normalize_date(value: str) -> str:
 # WEBSITE DISCOVERY
 # ============================================================================
 
+#def extract_html_title(html: str) -> str:
+ #   match = re.search(
+  #      r"<title[^>]*>(.*?)</title>",
+  #      html or "",
+   #     re.IGNORECASE | re.DOTALL,
+    #)
+
+    #if not match:
+    #    return ""
+
+    #return clean_xml(match.group(1))
+
 def inspect_website(url: str) -> Optional[PreCASignal]:
     if not config.WEBSITE_DISCOVERY_ENABLED:
         return None
@@ -577,7 +692,8 @@ def inspect_website(url: str) -> Optional[PreCASignal]:
         source_name=get_domain(url) or "Website",
         text=text[:config.MAX_TEXT_LENGTH],
         url=url,
-        website=url,
+      #  website=url,
+        website_url=url,
         raw={
             "title": extract_html_title(html),
             "source_url": url,
@@ -672,10 +788,14 @@ def run() -> None:
         except Exception:
             log.exception("Unexpected error in scan cycle")
 
-        interval = max(
-            30,
-            int(getattr(config, "SCAN_INTERVAL", 60))
-        )
+         interval = max(
+             30,
+             int(config.SCAN_INTERVAL_SECONDS)
+)
+       # interval = max(
+        #    30,
+         #   int(getattr(config, "SCAN_INTERVAL", 60))
+        #)
 
         log.info(
             "Next scan in %s seconds",

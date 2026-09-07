@@ -1,8 +1,20 @@
 import sqlite3
 from pathlib import Path
 
-DB = Path(__file__).resolve().parent.parent / "tracker.db"
+import config
 
+
+DB = Path(config.DB_PATH).resolve()
+
+#import sqlite3
+#from pathlib import Path
+
+#DB = Path(__file__).resolve().parent.parent / "tracker.db"
+#DB = Path(__file__).resolve().parent / "tracker.db"
+
+#from config import DB_PATH
+
+#DB = Path(DB_PATH)
 
 def connect():
     c = sqlite3.connect(DB)
